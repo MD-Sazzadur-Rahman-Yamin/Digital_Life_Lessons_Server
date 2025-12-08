@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
+const stripe = require("stripe")(process.env.stripe_secret);
 
 const app = express();
 const port = process.env.PORT || 3333;
@@ -49,6 +50,40 @@ async function run() {
         res.status(500).send({ error: error.message });
       }
     });
+
+    //payments api
+    //stripe
+    app.post(
+      "/payments/create-checkout-session/digital-life-lessons-premium",
+      async (req, res) => {
+        try {
+          // body must contain user customer_email, metadata(object)(it can be anything)
+          const paymentInfo = req.body;
+          const session = await stripe.checkout.sessions.create({
+            line_items: [
+              {
+                price_data: {
+                  currency: "BDT",
+                  unit_amount: 150000,
+                  product_data: {
+                    name: "Digital Life Lessons Premium",
+                  },
+                },
+                quantity: 1,
+              },
+            ],
+            metadata: paymentInfo.metadata,
+            customer_email: paymentInfo.customer_email,
+            mode: "payment",
+            success_url: `${process.env.client_domain}?/upgrade-successful`,
+            cancel_url: `${process.env.client_domain}?/upgrade-failed`,
+          });
+          res.send({ url: session.url });
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
 
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
