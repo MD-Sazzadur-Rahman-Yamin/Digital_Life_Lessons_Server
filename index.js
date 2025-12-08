@@ -24,6 +24,32 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
+    //Database
+    const db = client.db("Digital_Life_Lessons_DB");
+    //collections
+    const users_coll = db.collection("users");
+
+    //users APIs
+    app.post("/users/sync", async (req, res) => {
+      //add user
+      try {
+        const user = req.body;
+        user.role = "user";
+        user.createdAt = new Date();
+        user.isPremium = false;
+
+        const email = user.email;
+        const isUserExist = await users_coll.findOne({ email });
+        if (isUserExist) {
+          return res.send({ message: "User Exist" });
+        }
+        const result = await users_coll.insertOne(user);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
   } catch (error) {
