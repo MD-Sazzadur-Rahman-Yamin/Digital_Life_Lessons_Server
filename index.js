@@ -4,7 +4,7 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const stripe = require("stripe")(process.env.stripe_secret);
 
-//firebase admin
+//* firebase admin
 const admin = require("firebase-admin");
 const serviceAccount = require("./digital-life-lessons-sazztech-firebase-adminsdk.json");
 admin.initializeApp({
@@ -14,7 +14,7 @@ admin.initializeApp({
 const app = express();
 const port = process.env.PORT || 3333;
 
-// middlewares
+//* middlewares
 app.use(cors());
 app.use(express.json());
 const varifyFBToken = async (req, res, next) => {
@@ -32,11 +32,17 @@ const varifyFBToken = async (req, res, next) => {
   }
 };
 const varifyEmail = (req, res, next) => {
-  //must use after varifyFBToken middilwere
-  //it varify is the decoded email and query email are same
+  //! must use after varifyFBToken middilwere
+  //* it varify is the decoded email and query email are same
   try {
-    const email = req.query.email;
-    if (req.decoded_email !== email.toLowerCase()) {
+    const decodedEmail = req.decoded_email;
+    const emailQuery = req.query.email;
+    const emailParams = req.params.email;
+
+    if (
+      decodedEmail !== emailQuery.toLowerCase() ||
+      decodedEmail !== emailParams
+    ) {
       return res.status(403).send({ message: "Forbidden access" });
     }
     next();
@@ -47,7 +53,7 @@ const varifyEmail = (req, res, next) => {
   }
 };
 
-// MongoDB connection string
+//* MongoDB connection string
 const uri = `mongodb+srv://${process.env.mongodb_user}:${process.env.mongodb_pass}@cluster0.zzj1wzu.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, {
@@ -61,13 +67,13 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-    //Database
+    //* Database
     const db = client.db("Digital_Life_Lessons_DB");
-    //collections
+    //* collections
     const users_coll = db.collection("users");
     const payments_coll = db.collection("payments");
 
-    //users APIs
+    //* users APIs
     app.post("/users/sync", varifyFBToken, async (req, res) => {
       //add user
       try {
@@ -88,7 +94,25 @@ async function run() {
       }
     });
 
-    //payments api
+    app.get(
+      "/users/me/:email",
+      varifyFBToken,
+      varifyEmail,
+      async (req, res) => {
+        try {
+          const email = req.params.email;
+          const user = await users_coll.findOne({ email });
+          if (!user) {
+            return res.status(404).send({ message: "User not found" });
+          }
+          res.send(user);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
+
+    //* payments api
     //stripe
     app.post(
       "/payments/create-checkout-session/digital-life-lessons-premium",
