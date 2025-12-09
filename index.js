@@ -72,6 +72,7 @@ async function run() {
     //* collections
     const users_coll = db.collection("users");
     const payments_coll = db.collection("payments");
+    const lessons_coll = db.collection("lessons");
 
     //* users APIs
     app.post("/users/sync", varifyFBToken, async (req, res) => {
@@ -111,6 +112,52 @@ async function run() {
         }
       }
     );
+
+    // LESSONS
+    app.post("/lessons", varifyFBToken, async (req, res) => {
+      // frontend will sent title, story, category, emotionalTone, visibility, accessLevel,creatorEmail, createdAt, updatedAt
+      // backend will add likes, likesCount, favoritesCount, isFeatured
+      try {
+        const email = req.body.creatorEmail;
+        const userAccess = await users_coll.findOne({ email });
+        if (userAccess.isPremium === false) {
+          return res
+            .status(403)
+            .send({ message: "Upgrade to Premium to create premium lessons" });
+        }
+        const lessons = req.body;
+        lessons.likes = [];
+        lessons.likesCount = 0;
+        lessons.favoritesCount = 0;
+        lessons.isFeatured = false;
+
+        const result = await lessons_coll.insertOne(lessons);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    /**
+     * {
+  "_id": ObjectId,
+  "title": String,
+  "description": String,
+  "category": String,
+  "emotionalTone": String,
+  "imageURL": String,
+  "visibility": "public" | "private",
+  "accessLevel": "free" | "premium",
+  "creatorUid": String,
+  "likes": [String],           // firebaseUid
+  "likesCount": Number,
+  "favoritesCount": Number,
+  "viewsCount": Number,
+  "isFeatured": Boolean,
+  "createdAt": Date,
+  "updatedAt": Date
+}
+     */
 
     //* payments api
     //stripe
