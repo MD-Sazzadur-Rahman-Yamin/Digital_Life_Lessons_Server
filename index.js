@@ -31,25 +31,18 @@ const varifyFBToken = async (req, res, next) => {
     return res.status(401).send({ message: "Unauthorize access" });
   }
 };
-const varifyEmail = (req, res, next) => {
-  //! must use after varifyFBToken middilwere
-  //* it varify is the decoded email and query email are same
+const verifyEmail = (req, res, next) => {
   try {
     const decodedEmail = req.decoded_email;
-    const emailQuery = req.query.email;
     const emailParams = req.params.email;
 
-    if (
-      decodedEmail !== emailQuery.toLowerCase() ||
-      decodedEmail !== emailParams
-    ) {
+    if (decodedEmail !== emailParams) {
       return res.status(403).send({ message: "Forbidden access" });
     }
+
     next();
   } catch (error) {
-    return res
-      .status(401)
-      .send({ message: "Unauthorized access: invalid token" });
+    return res.status(401).send({ message: "Unauthorized access" });
   }
 };
 
@@ -98,7 +91,7 @@ async function run() {
     app.get(
       "/users/me/:email",
       varifyFBToken,
-      varifyEmail,
+      verifyEmail,
       async (req, res) => {
         try {
           const email = req.params.email;
@@ -138,26 +131,22 @@ async function run() {
       }
     });
 
-    /**
-     * {
-  "_id": ObjectId,
-  "title": String,
-  "description": String,
-  "category": String,
-  "emotionalTone": String,
-  "imageURL": String,
-  "visibility": "public" | "private",
-  "accessLevel": "free" | "premium",
-  "creatorUid": String,
-  "likes": [String],           // firebaseUid
-  "likesCount": Number,
-  "favoritesCount": Number,
-  "viewsCount": Number,
-  "isFeatured": Boolean,
-  "createdAt": Date,
-  "updatedAt": Date
-}
-     */
+    app.get(
+      "/lessons/my-lessons/:email",
+      varifyFBToken,
+      verifyEmail,
+      async (req, res) => {
+        try {
+          const email = req.params.email;
+          const query = { creatorEmail: email };
+          const cursor = lessons_coll.find(query);
+          const result = await cursor.toArray();
+          res.send(result);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
 
     //* payments api
     //stripe
