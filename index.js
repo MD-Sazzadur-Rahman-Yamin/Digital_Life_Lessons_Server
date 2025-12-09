@@ -4,12 +4,48 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const stripe = require("stripe")(process.env.stripe_secret);
 
+//firebase admin
+const admin = require("firebase-admin");
+const serviceAccount = require("./digital-life-lessons-sazztech-firebase-adminsdk.json");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 const app = express();
 const port = process.env.PORT || 3333;
 
 // middlewares
 app.use(cors());
 app.use(express.json());
+const varifyFBToken = async (req, res, next) => {
+  const token = req.headers?.authorization;
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorize access" });
+  }
+  try {
+    const idtoken = token.split(" ")[1];
+    const decoded = await admin.auth().verifyIdToken(idtoken);
+    req.decoded_email = decoded.email;
+    next();
+  } catch {
+    return res.status(401).send({ message: "Unauthorize access" });
+  }
+};
+const varifyEmail = (req, res, next) => {
+  //must use after varifyFBToken middilwere
+  //it varify is the decoded email and query email are same
+  try {
+    const email = req.query.email;
+    if (req.decoded_email !== email.toLowerCase()) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+    next();
+  } catch (error) {
+    return res
+      .status(401)
+      .send({ message: "Unauthorized access: invalid token" });
+  }
+};
 
 // MongoDB connection string
 const uri = `mongodb+srv://${process.env.mongodb_user}:${process.env.mongodb_pass}@cluster0.zzj1wzu.mongodb.net/?retryWrites=true&w=majority`;
@@ -32,7 +68,7 @@ async function run() {
     const payments_coll = db.collection("payments");
 
     //users APIs
-    app.post("/users/sync", async (req, res) => {
+    app.post("/users/sync", varifyFBToken, async (req, res) => {
       //add user
       try {
         const user = req.body;
@@ -86,12 +122,10 @@ async function run() {
       }
     );
 
-    app.patch("/payments/payment-success", async (req, res) => {
+    app.patch("/payments/payment-success", varifyFBToken, async (req, res) => {
       try {
         const sessionId = req.query.session_id;
-        console.log(sessionId);
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        console.log(session);
 
         //stop duplicate entry
         const query = { transactionId: session.payment_intent };
@@ -141,7 +175,7 @@ async function run() {
     console.log("MongoDB Error:", error);
   }
 }
-run();
+run().catch(console.dir);
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
