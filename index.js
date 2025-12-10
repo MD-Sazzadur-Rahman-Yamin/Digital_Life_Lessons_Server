@@ -148,27 +148,32 @@ async function run() {
         }
       }
     );
+
     app.patch("/lessons/:id", varifyFBToken, async (req, res) => {
       // update lessons API
       // frontend will sent title, story, category, emotionalTone, visibility, accessLevel, updatedAt
       try {
         const id = req.params.id;
-        console.log("Updating lesson ID:", id);
-        console.log("Request body:", req.body);
-        if (!ObjectId.isValid(id)) {
-          return res.status(400).send({ error: "Invalid lesson ID" });
-        }
 
         const query = { _id: new ObjectId(id) };
         const updatedDoc = {
           $set: req.body,
         };
         const result = await lessons_coll.updateOne(query, updatedDoc);
-        console.log("Update result:", result);
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
+    });
+
+    app.delete("/lessons/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const query = { _id: new ObjectId(id) };
+      const result = await lessons_coll.deleteOne(query);
+
+      res.send(result);
     });
 
     //* payments api
