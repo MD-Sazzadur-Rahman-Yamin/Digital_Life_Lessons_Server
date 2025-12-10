@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const stripe = require("stripe")(process.env.stripe_secret);
 
 //* firebase admin
@@ -148,7 +148,7 @@ async function run() {
         }
       }
     );
-    app.patch("/lessons/:id", async (req, res) => {
+    app.patch("/lessons/:id", varifyFBToken, async (req, res) => {
       // update lessons API
       // frontend will sent title, story, category, emotionalTone, visibility, accessLevel, updatedAt
       try {
