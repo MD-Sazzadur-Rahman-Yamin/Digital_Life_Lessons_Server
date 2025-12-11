@@ -106,6 +106,22 @@ async function run() {
       }
     );
 
+    app.patch("/users/update/:id", varifyFBToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        console.log(req.body);
+        const query = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: req.body,
+        };
+        const result = await users_coll.updateOne(query, updatedDoc);
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
     // LESSONS
     app.post("/lessons", varifyFBToken, async (req, res) => {
       // add lessons API
@@ -167,13 +183,17 @@ async function run() {
       }
     });
 
-    app.delete("/lessons/:id", async (req, res) => {
-      const id = req.params.id;
+    app.delete("/lessons/:id", varifyFBToken, async (req, res) => {
+      try {
+        const id = req.params.id;
 
-      const query = { _id: new ObjectId(id) };
-      const result = await lessons_coll.deleteOne(query);
+        const query = { _id: new ObjectId(id) };
+        const result = await lessons_coll.deleteOne(query);
 
-      res.send(result);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
     });
 
     //* payments api
