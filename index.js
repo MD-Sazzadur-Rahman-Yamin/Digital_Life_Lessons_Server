@@ -25,18 +25,18 @@ const varifyFBToken = async (req, res, next) => {
   try {
     const idtoken = token.split(" ")[1];
     const decoded = await admin.auth().verifyIdToken(idtoken);
-    req.decoded_email = decoded.email;
+    req.decoded_uid = decoded.uid;
     next();
   } catch {
     return res.status(401).send({ message: "Unauthorize access" });
   }
 };
-const verifyEmail = (req, res, next) => {
+const verifyUid = (req, res, next) => {
   try {
-    const decodedEmail = req.decoded_email;
-    const emailParams = req.params.email;
+    const decodedUid = req.decoded_uid;
+    const paramsUid = req.params.uid;
 
-    if (decodedEmail !== emailParams) {
+    if (decodedUid !== paramsUid) {
       return res.status(403).send({ message: "Forbidden access" });
     }
 
@@ -68,43 +68,60 @@ async function run() {
     const lessons_coll = db.collection("lessons");
 
     //* users APIs
-    app.post("/users/sync", varifyFBToken, async (req, res) => {
+    app.post("/users/sync", async (req, res) => {
       //add user
       try {
         const user = req.body;
-        user.role = "user";
-        user.createdAt = new Date();
-        user.isPremium = false;
+        const userData = {
+          firebaseUid: user.firebaseUid,
+          name: user.name,
+          email: user.email,
+          photoURL: user.photoURL,
+          role: "user",
+          isPremium: false,
+          createdAt: user.createdAt,
+        };
 
-        const email = user.email;
-        const isUserExist = await users_coll.findOne({ email });
+        const uid = user.firebaseUid;
+        const isUserExist = await users_coll.findOne({
+          firebaseUid: uid,
+        });
+
         if (isUserExist) {
           return res.send({ message: "User Exist" });
         }
-        const result = await users_coll.insertOne(user);
+        const result = await users_coll.insertOne(userData);
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
 
-    app.get(
-      "/users/me/:email",
-      varifyFBToken,
-      verifyEmail,
-      async (req, res) => {
-        try {
-          const email = req.params.email;
-          const user = await users_coll.findOne({ email });
-          if (!user) {
-            return res.status(404).send({ message: "User not found" });
-          }
-          res.send(user);
-        } catch (error) {
-          res.status(500).send({ error: error.message });
+    app.get("/user/:uid", async (req, res) => {
+      try {
+        const uid = req.params.uid;
+        const user = await users_coll.findOne({ uid });
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
         }
+        res.send(user);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
       }
-    );
+    });
+
+    app.get("/users/me/:uid", varifyFBToken, verifyUid, async (req, res) => {
+      try {
+        const uid = req.params.uid;
+        const user = await users_coll.findOne({ uid });
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+        res.send(user);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
 
     app.patch("/users/update/:id", varifyFBToken, async (req, res) => {
       try {
@@ -112,7 +129,10 @@ async function run() {
         console.log(req.body);
         const query = { _id: new ObjectId(id) };
         const updatedDoc = {
-          $set: req.body,
+          $set: {
+            name: req.body.displayName,
+            photoURL: req.body.photoURL,
+          },
         };
         const result = await users_coll.updateOne(query, updatedDoc);
 
@@ -125,37 +145,63 @@ async function run() {
     // LESSONS
     app.post("/lessons", varifyFBToken, async (req, res) => {
       // add lessons API
-      // frontend will sent title, story, category, emotionalTone, visibility, accessLevel,creatorEmail, createdAt, updatedAt
+      // frontend will sent title, story, category, emotionalTone, visibility, accessLevel,creatorUid, createdAt, updatedAt
       // backend will add likes, likesCount, favoritesCount, isFeatured
-      try {
-        const email = req.body.creatorEmail;
-        const userAccess = await users_coll.findOne({ email });
-        if (userAccess.isPremium === false) {
-          return res
-            .status(403)
-            .send({ message: "Upgrade to Premium to create premium lessons" });
-        }
-        const lessons = req.body;
-        lessons.likes = [];
-        lessons.likesCount = 0;
-        lessons.favoritesCount = 0;
-        lessons.isFeatured = false;
+      // frontend will sent title, story, category, emotionalTone, visibility, accessLevel,creatorEmail, createdAt, updatedAt
 
-        const result = await lessons_coll.insertOne(lessons);
+      try {
+        const { creatorUid, accessLevel } = req.body;
+        const user = await users_coll.findOne({ firebaseUid: creatorUid });
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+        // Only block when creating a PREMIUM lesson
+        if (accessLevel === "Premium" && user.isPremium === false) {
+          return res.status(403).send({
+            message: "Upgrade to Premium to create premium lessons",
+          });
+        }
+
+        const lesson = req.body;
+        const lessonData = {
+          title: lesson.title,
+          story: lesson.story,
+          category: lesson.category,
+          emotionalTone: lesson.emotionalTone,
+          visibility: lesson.visibility,
+          accessLevel: lesson.accessLevel,
+          creatorUid: lesson.creatorUid,
+          createdAt: lesson.createdAt,
+          update: lesson.updatedAt,
+          likes: [],
+          likesCount: 0,
+          favoritesCount: 0,
+          isFeatured: false,
+        };
+
+        const result = await lessons_coll.insertOne(lessonData);
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
 
+    app.get("/lessons", async (req, res) => {
+      //get all publit lessons
+      const query = { visibility: "Public" };
+      const cursor = lessons_coll.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
     app.get(
-      "/lessons/my-lessons/:email",
+      "/lessons/my-lessons/:uid",
       varifyFBToken,
-      verifyEmail,
+      verifyUid,
       async (req, res) => {
         try {
-          const email = req.params.email;
-          const query = { creatorEmail: email };
+          const creatorUid = req.params.uid;
+          const query = { creatorUid: creatorUid };
           const cursor = lessons_coll.find(query);
           const result = await cursor.toArray();
           res.send(result);
@@ -170,10 +216,17 @@ async function run() {
       // frontend will sent title, story, category, emotionalTone, visibility, accessLevel, updatedAt
       try {
         const id = req.params.id;
-
         const query = { _id: new ObjectId(id) };
+        const dataToUpdate = req.body;
         const updatedDoc = {
-          $set: req.body,
+          $set: {
+            title: dataToUpdate.title,
+            story: dataToUpdate.story,
+            category: dataToUpdate.category,
+            emotionalTone: dataToUpdate.visibility,
+            accessLevel: dataToUpdate.accessLevel,
+            updatedAt: dataToUpdate.updatedAt,
+          },
         };
         const result = await lessons_coll.updateOne(query, updatedDoc);
 
@@ -217,7 +270,11 @@ async function run() {
                 quantity: 1,
               },
             ],
-            metadata: paymentInfo.metadata,
+            // metadata: paymentInfo.metadata,
+            metadata: {
+              customer_name: paymentInfo.metadata.customer_name,
+              firebaseUid: paymentInfo.metadata.firebaseUid,
+            },
             customer_email: paymentInfo.customer_email,
             mode: "payment",
             success_url: `${process.env.client_domain}/upgrade-successful?session_id={CHECKOUT_SESSION_ID}`,
@@ -235,48 +292,58 @@ async function run() {
         const sessionId = req.query.session_id;
         const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-        //stop duplicate entry
-        const query = { transactionId: session.payment_intent };
-        const paymentExist = await payments_coll.findOne(query);
-        if (paymentExist) {
-          return res.send(paymentExist);
+        // Stop duplicate entry
+        const existQuery = { transactionId: session.payment_intent };
+        const existingPayment = await payments_coll.findOne(existQuery);
+
+        if (existingPayment) {
+          return res.send({
+            message: "Payment already recorded",
+            duplicate: true,
+            payment: existingPayment,
+            transactionId: session.payment_intent,
+          });
         }
-        //payment data
+
+        // Build payment data
         const payment = {
+          firebaseUid: session.metadata.firebaseUid,
           userEmail: session.customer_email,
           stripeSessionId: sessionId,
           currency: session.currency,
           amount: session.amount_total / 100,
           status: session.payment_status,
           createdAt: new Date(),
-          transactionId: session.payment_intent,
+          transactionId: session.payment_intent, // unique identifier
         };
 
-        //update user isPremium status
+        // Update user premium status
         if (session.payment_status === "paid") {
-          const query = { email: session.customer_email };
-          const update = {
-            $set: {
-              isPremium: true,
-            },
-          };
-          const result = await users_coll.updateOne(query, update);
+          const userQuery = { firebaseUid: session.metadata.firebaseUid };
+          const update = { $set: { isPremium: true } };
 
-          //add payment data in db
+          const userResult = await users_coll.updateOne(userQuery, update);
+
+          // Insert payment in DB
           const paymentResult = await payments_coll.insertOne(payment);
 
-          res.send({
+          return res.send({
             message: "Payment successful",
             transactionId: payment.transactionId,
             userModifiedCount: userResult.modifiedCount,
             paymentInsertedId: paymentResult.insertedId,
           });
         }
+
+        // If payment not paid
+        res.send({
+          message: "Payment is not marked as paid",
+          status: session.payment_status,
+        });
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
-
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
   } catch (error) {
