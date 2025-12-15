@@ -47,7 +47,8 @@ const verifyUid = (req, res, next) => {
 };
 
 //* MongoDB connection string
-const uri = `mongodb+srv://${process.env.mongodb_user}:${process.env.mongodb_pass}@cluster0.zzj1wzu.mongodb.net/?retryWrites=true&w=majority`;
+const uri = `mongodb+srv://${process.env.mongodb_user}:${process.env.mongodb_pass}@cluster0.zzj1wzu.mongodb.net/Digital_Life_Lessons_DB?retryWrites=true&w=majority`;
+// const uri = `mongodb+srv://${process.env.mongodb_user}:${process.env.mongodb_pass}@cluster0.zzj1wzu.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -100,7 +101,7 @@ async function run() {
     app.get("/user/:uid", async (req, res) => {
       try {
         const uid = req.params.uid;
-        const user = await users_coll.findOne({ uid });
+        const user = await users_coll.findOne({ firebaseUid: uid });
         if (!user) {
           return res.status(404).send({ message: "User not found" });
         }
@@ -113,7 +114,7 @@ async function run() {
     app.get("/users/me/:uid", varifyFBToken, verifyUid, async (req, res) => {
       try {
         const uid = req.params.uid;
-        const user = await users_coll.findOne({ uid });
+        const user = await users_coll.findOne({ firebaseUid: uid });
         if (!user) {
           return res.status(404).send({ message: "User not found" });
         }
@@ -188,10 +189,25 @@ async function run() {
 
     app.get("/lessons", async (req, res) => {
       //get all publit lessons
-      const query = { visibility: "Public" };
-      const cursor = lessons_coll.find(query);
-      const result = await cursor.toArray();
-      res.send(result);
+      try {
+        const query = { visibility: "Public" };
+        const cursor = lessons_coll.find(query);
+        const result = await cursor.toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    app.get("/lessons/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const lesson = await lessons_coll.findOne(query);
+        res.send(lesson);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
     });
 
     app.get(
