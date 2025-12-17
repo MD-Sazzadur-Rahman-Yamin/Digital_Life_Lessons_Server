@@ -67,6 +67,7 @@ async function run() {
     const users_coll = db.collection("users");
     const payments_coll = db.collection("payments");
     const lessons_coll = db.collection("lessons");
+    const comments_coll = db.collection("comments");
     const lessonReports_coll = db.collection("lessonReports");
 
     //* users APIs
@@ -266,7 +267,7 @@ async function run() {
       }
     });
 
-    app.post("/lessons/:id/report", async (req, res) => {
+    app.post("/lessons/:id/report", varifyFBToken, async (req, res) => {
       // Add report
       try {
         const lessonId = req.params.id;
@@ -280,6 +281,24 @@ async function run() {
         };
 
         const result = await lessonReports_coll.insertOne(reportData);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // COMMENTS
+    app.post("/comments", async (req, res) => {
+      try {
+        const body = req.body;
+        const commentData = {
+          lessonId: body.lessonId,
+          userUid: body.userUid,
+          commentText: body.commentText,
+          createdAt: body.createdAt,
+        };
+
+        const result = await comments_coll.insertOne(commentData);
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
