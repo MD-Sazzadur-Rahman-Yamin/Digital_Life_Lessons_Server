@@ -287,8 +287,23 @@ async function run() {
       }
     });
 
+    app.get("/lessons/recommended/:id", varifyFBToken, async (req, res) => {
+      try {
+        const lessonId = req.params.id;
+        const lessonQuery = { _id: new ObjectId(lessonId) };
+        const lesson = await lessons_coll.findOne(lessonQuery);
+
+        const recommendedQuery = { category: lesson.category };
+        const recommendedCursor = lessons_coll.find(recommendedQuery);
+        const recommendedResult = await recommendedCursor.toArray();
+        res.send(recommendedResult);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
     // COMMENTS
-    app.post("/comments", async (req, res) => {
+    app.post("/comments", varifyFBToken, async (req, res) => {
       try {
         const body = req.body;
         const commentData = {
@@ -305,7 +320,7 @@ async function run() {
         res.status(500).send({ error: error.message });
       }
     });
-    app.get("/comments/:lessonId", async (req, res) => {
+    app.get("/comments/:lessonId", varifyFBToken, async (req, res) => {
       try {
         const lessonId = req.params.lessonId;
         const query = { lessonId: lessonId };
