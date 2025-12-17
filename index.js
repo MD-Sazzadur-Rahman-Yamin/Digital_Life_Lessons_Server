@@ -294,12 +294,23 @@ async function run() {
         const commentData = {
           lessonId: body.lessonId,
           userUid: body.userUid,
+          userName: body.userName,
           commentText: body.commentText,
           createdAt: body.createdAt,
         };
 
         const result = await comments_coll.insertOne(commentData);
         res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+    app.get("/comments/:lessonId", async (req, res) => {
+      try {
+        const lessonId = req.params.lessonId;
+        const query = { lessonId: lessonId };
+        const lesson = await comments_coll.find(query).toArray();
+        res.send(lesson);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
