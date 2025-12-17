@@ -17,7 +17,7 @@ const port = process.env.PORT || 3333;
 //* middlewares
 app.use(cors());
 app.use(express.json());
-const varifyFBToken = async (req, res, next) => {
+const verifyFBToken = async (req, res, next) => {
   const token = req.headers?.authorization;
   if (!token) {
     return res.status(401).send({ message: "Unauthorize access" });
@@ -69,6 +69,7 @@ async function run() {
     const lessons_coll = db.collection("lessons");
     const comments_coll = db.collection("comments");
     const lessonReports_coll = db.collection("lessonReports");
+    const favorites_coll = db.collection("favorites");
 
     //* users APIs
     app.post("/users/sync", async (req, res) => {
@@ -113,7 +114,7 @@ async function run() {
       }
     });
 
-    app.get("/users/me/:uid", varifyFBToken, verifyUid, async (req, res) => {
+    app.get("/users/me/:uid", verifyFBToken, verifyUid, async (req, res) => {
       try {
         const uid = req.params.uid;
         const user = await users_coll.findOne({ firebaseUid: uid });
@@ -126,7 +127,7 @@ async function run() {
       }
     });
 
-    app.patch("/users/update/:id", varifyFBToken, async (req, res) => {
+    app.patch("/users/update/:id", verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
         console.log(req.body);
@@ -146,7 +147,7 @@ async function run() {
     });
 
     // LESSONS
-    app.post("/lessons", varifyFBToken, async (req, res) => {
+    app.post("/lessons", verifyFBToken, async (req, res) => {
       // add lessons API
       // frontend will sent title, story, category, emotionalTone, visibility, accessLevel,creatorUid, createdAt, updatedAt
       // backend will add likes, likesCount, favoritesCount, isFeatured
@@ -201,7 +202,7 @@ async function run() {
       }
     });
 
-    app.get("/lessons/:id", varifyFBToken, async (req, res) => {
+    app.get("/lessons/:id", verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
         const query = { _id: new ObjectId(id) };
@@ -214,7 +215,7 @@ async function run() {
 
     app.get(
       "/lessons/my-lessons/:uid",
-      varifyFBToken,
+      verifyFBToken,
       verifyUid,
       async (req, res) => {
         try {
@@ -229,7 +230,7 @@ async function run() {
       }
     );
 
-    app.patch("/lessons/:id", varifyFBToken, async (req, res) => {
+    app.patch("/lessons/:id", verifyFBToken, async (req, res) => {
       // update lessons API
       // frontend will sent title, story, category, emotionalTone, visibility, accessLevel, updatedAt
       try {
@@ -254,7 +255,7 @@ async function run() {
       }
     });
 
-    app.delete("/lessons/:id", varifyFBToken, async (req, res) => {
+    app.delete("/lessons/:id", verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -267,7 +268,155 @@ async function run() {
       }
     });
 
-    app.post("/lessons/:id/report", varifyFBToken, async (req, res) => {
+    app.patch("/lessons/:id/like", verifyFBToken, async (req, res) => {
+      try {
+        const lessonId = req.params.id;
+        const userUid = req.decoded_uid;
+
+        const lesson = await lessons_coll.findOne({
+          _id: new ObjectId(lessonId),
+        });
+
+        if (!lesson) {
+          return res.status(404).send({ message: "Lesson not found" });
+        }
+
+        const hasLiked = lesson.likes.includes(userUid);
+
+        const update = hasLiked
+          ? {
+              $pull: { likes: userUid },
+              $inc: { likesCount: -1 },
+            }
+          : {
+              $addToSet: { likes: userUid },
+              $inc: { likesCount: 1 },
+            };
+
+        await lessons_coll.updateOne({ _id: new ObjectId(lessonId) }, update);
+
+        res.send({
+          success: true,
+          isLiked: !hasLiked,
+        });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Toggle favorite for a lesson
+    app.patch("/lessons/:id/favorite", verifyFBToken, async (req, res) => {
+      try {
+        const lessonId = req.params.id;
+        const userUid = req.decoded_uid;
+
+        const lessonQuery = { _id: new ObjectId(lessonId) };
+        const lesson = await lessons_coll.findOne(lessonQuery);
+        if (!lesson)
+          return res.status(404).send({ message: "Lesson not found" });
+
+        const favoriteExistsQuery = {
+          userUid,
+          lessonId: new ObjectId(lessonId),
+        };
+        // Check if already favorited
+        const favoriteExists = await favorites_coll.findOne(
+          favoriteExistsQuery
+        );
+
+        if (favoriteExists) {
+          // যদি আছে → remove favorite
+          await favorites_coll.deleteOne({ _id: favoriteExists._id });
+          await lessons_coll.updateOne(
+            { _id: new ObjectId(lessonId) },
+            { $inc: { favoritesCount: -1 } }
+          );
+          return res.send({ success: true, isFavorite: false });
+        } else {
+          // যদি না থাকে → add favorite
+          await favorites_coll.insertOne({
+            userUid,
+            lessonId: new ObjectId(lessonId),
+            createdAt: new Date(),
+          });
+          await lessons_coll.updateOne(
+            { _id: new ObjectId(lessonId) },
+            { $inc: { favoritesCount: 1 } }
+          );
+          return res.send({ success: true, isFavorite: true });
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: error.message });
+      }
+    });
+
+    app.get("/favorites/check", verifyFBToken, async (req, res) => {
+      try {
+        const lessonId = req.query.lessonId; // query থেকে lessonId পাওয়া
+        const userUid = req.decoded_uid; // middleware থেকে current user UID
+
+        const favorite = await db.collection("favorites").findOne({
+          userUid,
+          lessonId: new ObjectId(lessonId),
+        });
+
+        if (favorite) {
+          res.send({ isFavorite: true });
+        } else {
+          res.send({ isFavorite: false });
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: error.message });
+      }
+    });
+
+    // app.patch("/lessons/:id/favorite", verifyFBToken, async (req, res) => {
+    //   try {
+    //     const lessonId = req.params.id;
+    //     const userUid = req.decoded_uid;
+
+    //     const lessonQuery = { _id: new ObjectId(lessonId) };
+    //     const lesson = await lessons_coll.findOne(lessonQuery);
+    //     if (!lesson)
+    //       return res.status(404).send({ message: "Lesson not found" });
+
+    //     // Check if already favorited
+    //     const favoriteExists = await db
+    //       .collection("favorites")
+    //       .findOne({ userUid, lessonId });
+
+    //     if (favoriteExists) {
+    //       // Remove favorite
+    //       await db
+    //         .collection("favorites")
+    //         .deleteOne({ _id: favoriteExists._id });
+    //       await lessons_coll.updateOne(
+    //         { _id: new ObjectId(lessonId) },
+    //         { $inc: { favoritesCount: -1 } }
+    //       );
+    //       return res.send({ success: true, isFavorite: false });
+    //     } else {
+    //       // Add favorite
+    //       await db.collection("favorites").insertOne({
+    //         userUid,
+    //         lessonId,
+    //         createdAt: new Date(),
+    //       });
+    //       await lessons_coll.updateOne(
+    //         { _id: new ObjectId(lessonId) },
+    //         { $inc: { favoritesCount: 1 } }
+    //       );
+    //       return res.send({ success: true, isFavorite: true });
+    //     }
+    //   } catch (error) {
+    //     console.error(error);
+    //     res.status(500).send({ message: error.message });
+    //   }
+    // });
+
+    app.post("/lessons/:id/report", verifyFBToken, async (req, res) => {
       // Add report
       try {
         const lessonId = req.params.id;
@@ -287,14 +436,14 @@ async function run() {
       }
     });
 
-    app.get("/lessons/recommended/:id", varifyFBToken, async (req, res) => {
+    app.get("/lessons/recommended/:id", verifyFBToken, async (req, res) => {
       try {
         const lessonId = req.params.id;
         const lessonQuery = { _id: new ObjectId(lessonId) };
         const lesson = await lessons_coll.findOne(lessonQuery);
 
         const recommendedQuery = { category: lesson.category };
-        const recommendedCursor = lessons_coll.find(recommendedQuery);
+        const recommendedCursor = lessons_coll.find(recommendedQuery).limit(6);
         const recommendedResult = await recommendedCursor.toArray();
         res.send(recommendedResult);
       } catch (error) {
@@ -303,7 +452,7 @@ async function run() {
     });
 
     // COMMENTS
-    app.post("/comments", varifyFBToken, async (req, res) => {
+    app.post("/comments", verifyFBToken, async (req, res) => {
       try {
         const body = req.body;
         const commentData = {
@@ -320,7 +469,7 @@ async function run() {
         res.status(500).send({ error: error.message });
       }
     });
-    app.get("/comments/:lessonId", varifyFBToken, async (req, res) => {
+    app.get("/comments/:lessonId", verifyFBToken, async (req, res) => {
       try {
         const lessonId = req.params.lessonId;
         const query = { lessonId: lessonId };
@@ -369,7 +518,7 @@ async function run() {
       }
     );
 
-    app.patch("/payments/payment-success", varifyFBToken, async (req, res) => {
+    app.patch("/payments/payment-success", verifyFBToken, async (req, res) => {
       try {
         const sessionId = req.query.session_id;
         const session = await stripe.checkout.sessions.retrieve(sessionId);
