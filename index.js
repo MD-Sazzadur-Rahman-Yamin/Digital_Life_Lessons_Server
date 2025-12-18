@@ -493,6 +493,20 @@ async function run() {
       }
     );
 
+    app.get(
+      "/admin/manage-lessons",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const lessons = await lessons_coll.find().toArray();
+          res.send(lessons);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
+
     //* payments api
     //stripe
     app.post(
