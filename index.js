@@ -71,6 +71,18 @@ async function run() {
     const lessonReports_coll = db.collection("lessonReports");
     const favorites_coll = db.collection("favorites");
 
+    // * middleware with database access
+    const verifyAdmin = async (req, res, next) => {
+      //must be used after varifyFBToken middilware
+      const uid = req.decoded_uid;
+      const query = { firebaseUid: uid };
+      const user = await users_coll.findOne(query);
+      if (!user || user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
     //* users APIs
     app.post("/users/sync", async (req, res) => {
       //add user
@@ -463,6 +475,23 @@ async function run() {
         res.status(500).send({ error: error.message });
       }
     });
+
+    // Admin
+
+    app.get(
+      "/admin/manage-users",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        // Only admin can access this route
+        try {
+          const users = await users_coll.find().toArray();
+          res.send(users);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
 
     //* payments api
     //stripe
