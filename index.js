@@ -409,11 +409,30 @@ async function run() {
 
     // FAVORITES
     app.get("/favorites", verifyFBToken, async (req, res) => {
-      const uid = req.decoded_uid;
-      const query = { userUid: uid };
-      const cursor = favorites_coll.find(query);
-      const result = await cursor.toArray();
-      res.send(result);
+      // api to get login users favorite lessons
+      try {
+        const uid = req.decoded_uid;
+        const query = { userUid: uid };
+        const cursor = favorites_coll.find(query);
+        const result = await cursor.toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    app.delete("/favorites/:id", verifyFBToken, async (req, res) => {
+      // api to delete login users favorite lessons
+      try {
+        const id = req.params.id;
+
+        const query = { _id: new ObjectId(id) };
+        const result = await favorites_coll.deleteOne(query);
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
     });
 
     // COMMENTS
