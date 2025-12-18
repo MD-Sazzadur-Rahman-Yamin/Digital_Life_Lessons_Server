@@ -372,50 +372,6 @@ async function run() {
       }
     });
 
-    // app.patch("/lessons/:id/favorite", verifyFBToken, async (req, res) => {
-    //   try {
-    //     const lessonId = req.params.id;
-    //     const userUid = req.decoded_uid;
-
-    //     const lessonQuery = { _id: new ObjectId(lessonId) };
-    //     const lesson = await lessons_coll.findOne(lessonQuery);
-    //     if (!lesson)
-    //       return res.status(404).send({ message: "Lesson not found" });
-
-    //     // Check if already favorited
-    //     const favoriteExists = await db
-    //       .collection("favorites")
-    //       .findOne({ userUid, lessonId });
-
-    //     if (favoriteExists) {
-    //       // Remove favorite
-    //       await db
-    //         .collection("favorites")
-    //         .deleteOne({ _id: favoriteExists._id });
-    //       await lessons_coll.updateOne(
-    //         { _id: new ObjectId(lessonId) },
-    //         { $inc: { favoritesCount: -1 } }
-    //       );
-    //       return res.send({ success: true, isFavorite: false });
-    //     } else {
-    //       // Add favorite
-    //       await db.collection("favorites").insertOne({
-    //         userUid,
-    //         lessonId,
-    //         createdAt: new Date(),
-    //       });
-    //       await lessons_coll.updateOne(
-    //         { _id: new ObjectId(lessonId) },
-    //         { $inc: { favoritesCount: 1 } }
-    //       );
-    //       return res.send({ success: true, isFavorite: true });
-    //     }
-    //   } catch (error) {
-    //     console.error(error);
-    //     res.status(500).send({ message: error.message });
-    //   }
-    // });
-
     app.post("/lessons/:id/report", verifyFBToken, async (req, res) => {
       // Add report
       try {
@@ -449,6 +405,15 @@ async function run() {
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
+    });
+
+    // FAVORITES
+    app.get("/favorites", verifyFBToken, async (req, res) => {
+      const uid = req.decoded_uid;
+      const query = { userUid: uid };
+      const cursor = favorites_coll.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
     });
 
     // COMMENTS
