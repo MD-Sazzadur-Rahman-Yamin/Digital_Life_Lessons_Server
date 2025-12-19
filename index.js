@@ -476,7 +476,7 @@ async function run() {
       }
     });
 
-    // Admin
+    //* Admin
     app.patch(
       "/users/role/:id",
       verifyFBToken,
@@ -528,6 +528,17 @@ async function run() {
         }
       }
     );
+
+    app.get("/admin/lessons", async (req, res) => {
+      //get all publit lessons
+      try {
+        const cursor = lessons_coll.find();
+        const result = await cursor.toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
 
     app.get(
       "/admin/lessons/:uid",
