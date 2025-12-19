@@ -498,9 +498,27 @@ async function run() {
       verifyFBToken,
       verifyAdmin,
       async (req, res) => {
+        // Only admin can access this route
         try {
           const lessons = await lessons_coll.find().toArray();
           res.send(lessons);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
+
+    app.get(
+      "/admin/lessons/:uid",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const uid = req.params.uid;
+          const query = { creatorUid: uid };
+          const cursor = lessons_coll.find(query);
+          const result = await cursor.toArray();
+          res.send(result);
         } catch (error) {
           res.status(500).send({ error: error.message });
         }
