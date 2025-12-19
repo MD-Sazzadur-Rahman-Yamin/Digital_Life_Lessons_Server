@@ -529,7 +529,7 @@ async function run() {
       }
     );
 
-    app.get("/admin/lessons", async (req, res) => {
+    app.get("/admin/lessons", verifyFBToken, verifyAdmin, async (req, res) => {
       //get all publit lessons
       try {
         const cursor = lessons_coll.find();
@@ -550,6 +550,24 @@ async function run() {
           const query = { creatorUid: uid };
           const cursor = lessons_coll.find(query);
           const result = await cursor.toArray();
+          res.send(result);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
+
+    app.delete(
+      "/admin/manage-lessons/:id",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+
+          const query = { _id: new ObjectId(id) };
+          const result = await lessons_coll.deleteOne(query);
+
           res.send(result);
         } catch (error) {
           res.status(500).send({ error: error.message });
