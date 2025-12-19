@@ -477,6 +477,27 @@ async function run() {
     });
 
     // Admin
+    app.patch(
+      "/users/role/:id",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const { role } = req.body;
+
+          const query = { _id: new ObjectId(id) };
+          const updatedDocs = {
+            $set: { role },
+          };
+
+          const result = await users_coll.updateOne(query, updatedDocs);
+          res.send(result);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
 
     app.get(
       "/admin/manage-users",
