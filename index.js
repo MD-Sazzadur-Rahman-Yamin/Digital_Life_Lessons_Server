@@ -605,6 +605,20 @@ async function run() {
       }
     );
 
+    app.get(
+      "/admin/reported-lessons",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const lessonReports = await lessonReports_coll.find().toArray();
+          res.send(lessonReports);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
+
     //* payments api
     //stripe
     app.post(
