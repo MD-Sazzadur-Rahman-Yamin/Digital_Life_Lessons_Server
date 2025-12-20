@@ -575,6 +575,36 @@ async function run() {
       }
     );
 
+    app.patch(
+      "/admin/manage-lessons/:id",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const lessonId = req.params.id;
+          const body = req.body;
+
+          const query = { _id: new ObjectId(lessonId) };
+
+          const updatedDoc = {
+            $set: body,
+          };
+
+          const options = {};
+
+          const result = await lessons_coll.updateOne(
+            query,
+            updatedDoc,
+            options
+          );
+
+          res.send(result);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
+
     //* payments api
     //stripe
     app.post(
