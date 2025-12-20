@@ -392,9 +392,11 @@ async function run() {
 
         const reportData = {
           lessonId: lessonId,
+          title: body.title,
           reporterUid: body.reporterUid,
           reason: body.reason,
           timestamp: body.timestamp,
+          status: "pending",
         };
 
         const result = await lessonReports_coll.insertOne(reportData);
@@ -613,6 +615,24 @@ async function run() {
         try {
           const lessonReports = await lessonReports_coll.find().toArray();
           res.send(lessonReports);
+        } catch (error) {
+          res.status(500).send({ error: error.message });
+        }
+      }
+    );
+
+    app.delete(
+      "/admin/reported-lessons/:id/delete",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+
+          const query = { _id: new ObjectId(id) };
+          const result = await lessonReports_coll.deleteOne(query);
+
+          res.send(result);
         } catch (error) {
           res.status(500).send({ error: error.message });
         }
