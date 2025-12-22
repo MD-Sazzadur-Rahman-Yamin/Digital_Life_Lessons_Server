@@ -323,6 +323,26 @@ async function run() {
       }
     });
 
+    app.get("/lessons/featured", async (req, res) => {
+      console.log(req);
+      const query = { isFeatured: true };
+      const cursor = lessons_coll.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // app.get("/lessons/featured", async (req, res) => {
+    //   try {
+    //     console.log("Public featured lessons endpoint hit!");
+    //     const query = { isFeatured: true };
+    //     const cursor = lessons_coll.find(query);
+    //     const result = await cursor.toArray();
+    //     res.send(result);
+    //   } catch (error) {
+    //     res.status(500).send({ error: error.message });
+    //   }
+    // });
+
     // Toggle favorite for a lesson
     app.patch("/lessons/:id/favorite", verifyFBToken, async (req, res) => {
       try {
