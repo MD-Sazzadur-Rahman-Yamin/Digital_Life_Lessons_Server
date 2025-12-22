@@ -6,7 +6,14 @@ const stripe = require("stripe")(process.env.stripe_secret);
 
 //* firebase admin
 const admin = require("firebase-admin");
-const serviceAccount = require("./digital-life-lessons-sazztech-firebase-adminsdk.json");
+
+// const serviceAccount = require("./digital-life-lessons-sazztech-firebase-adminsdk.json");
+
+// Decode your base64 env variable
+const decoded = Buffer.from(process.env.fb_admin, "base64").toString("utf8");
+const serviceAccount = JSON.parse(decoded);
+
+// Initialize Firebase Admin
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
@@ -734,8 +741,9 @@ async function run() {
         res.status(500).send({ error: error.message });
       }
     });
-    await client.db("admin").command({ ping: 1 });
-    console.log("Connected to MongoDB!");
+
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Connected to MongoDB!");
   } catch (error) {
     console.log("MongoDB Error:", error);
   }
